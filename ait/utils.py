@@ -1,5 +1,7 @@
 import numpy as np
 from PIL import Image
+from skimage.measure import label
+
 
 def get_r(input_array):
     '''
@@ -44,13 +46,27 @@ def get_r_3d(input_array):
     return [rx, ry, rz], r
 
 
-
 def read_png(path):
     img = Image.open(path)
     img = np.array(img)
     return img
 
+
 def save_png(img, path):
     # img should be [0, 255]
     img = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
     img.save(path)
+
+
+# TODO: test
+def get_isolate(arr, lower_cut=0, larger_cut=np.inf, **kwargs):
+    '''
+    Get the isolated region of an array,
+    where the size of the region is larger than lower_cut
+    and smaller than larger_cut.
+    '''
+    clusters = label(arr, **kwargs)
+    cluster_sizes = np.bincount(clusters.ravel())
+    good_clusters = np.where((cluster_sizes > lower_cut)
+                             & (cluster_sizes < larger_cut))[0]
+    return np.isin(clusters, good_clusters)

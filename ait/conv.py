@@ -1,14 +1,18 @@
+from functools import partial
 import numpy as np
 from astropy.convolution import Gaussian2DKernel, Kernel
 from astropy.convolution import convolve as _convolve, convolve_fft as _convolve_fft
-from skimage.measure import label
+from joblib import Parallel, delayed
+
 from asa.loess2d import LOESS2D
 from .utils import get_isolate
 
 # TODO: test all functions
 
 
-def convolve(arr, kernel, method='direct', **kwargs):
+def convolve(arr, kernel, is_err=False, method='direct', **kwargs):
+    if is_err:
+        return convolve_err(arr, kernel, method='direct', **kwargs)
     if method == 'direct':
         return _convolve(arr, kernel, **kwargs)
     elif method == 'fft':
@@ -23,7 +27,56 @@ def convolve_err(err, kernel, method='direct', **kwargs):
     kernel = np.square(kernel)
     var = np.square(err)
     kwargs['normalize_kernel'] = False
-    return np.sqrt(convolve(var, kernel, method=method, **kwargs))
+    return np.sqrt(convolve(var, kernel, is_err=False, method=method,
+                            **kwargs))
+
+
+def conv_image():
+    ...
+
+
+def conv_cube_2d(cube, kernel, method='direct', vel_axis=0, **kwargs):
+
+    if vel_axis not in [0, 2]:
+        raise ValueError('vel_axis must be 0 or 2')
+
+    conv_method = partial(convolve, kernel=kernel, method=method, **kwargs)
+    cube_conv = np.zeros_like(cube)
+
+    if vel_axis == 0:
+        for i in range(cube.shape[0]):
+            cube_conv[i, :, :] = conv_method(cube[i, :, :])
+    elif vel_axis == 2:
+        for i in range(cube.shape[2]):
+            cube_conv[:, :, i] = conv_method(cube[:, :, i])
+
+    return cube_conv
+
+
+def conv_cube_2d_p(cube,
+                   kernel,
+                   method='direct',
+                   vel_axis=0,
+                   n_jobs=1,
+                   **kwargs):
+
+    if vel_axis not in [0, 2]:
+        raise ValueError('vel_axis must be 0 or 2')
+
+    conv_method = partial(convolve, kernel=kernel, method=method, **kwargs)
+
+    if vel_axis == 0:
+        cube_conv = Parallel(n_jobs=n_jobs)(delayed(conv_method)(cube[i, :, :])
+                                            for i in range(cube.shape[0]))
+    elif vel_axis == 2:
+        cube_conv = Parallel(n_jobs=n_jobs)(delayed(conv_method)(cube[:, :, i])
+                                            for i in range(cube.shape[2]))
+
+    return cube_conv
+
+
+def match_psf_gaussian_cube_2d():
+    ...
 
 
 def match_psf_gaussian(width_from,
@@ -81,3 +134,5 @@ def patch_image(data, mask, threshold):
     data_new[can_patch == 1] = loess(x[can_patch == 1], y[can_patch == 1])
 
     return data_new
+
+# TODO: error correction

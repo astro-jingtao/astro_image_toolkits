@@ -58,6 +58,7 @@ def conv_cube_2d_p(cube,
                    method='direct',
                    vel_axis=0,
                    n_jobs=1,
+                   batch_size='auto',
                    **kwargs):
 
     if vel_axis not in [0, 2]:
@@ -66,12 +67,12 @@ def conv_cube_2d_p(cube,
     conv_method = partial(convolve, kernel=kernel, method=method, **kwargs)
 
     if vel_axis == 0:
-        cube_conv_stack = Parallel(n_jobs=n_jobs)(
+        cube_conv_stack = Parallel(n_jobs=n_jobs, batch_size=batch_size)(
             delayed(conv_method)(cube[i, :, :]) for i in range(cube.shape[0]))
         cube_conv = np.array(cube_conv_stack)
 
     elif vel_axis == 2:
-        cube_conv_stack = Parallel(n_jobs=n_jobs)(
+        cube_conv_stack = Parallel(n_jobs=n_jobs, batch_size=batch_size)(
             delayed(conv_method)(cube[:, :, i]) for i in range(cube.shape[2]))
         cube_conv = np.array(cube_conv_stack).transpose(1, 2, 0)
 

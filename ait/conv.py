@@ -66,11 +66,68 @@ def conv_cube_2d_p(cube,
     conv_method = partial(convolve, kernel=kernel, method=method, **kwargs)
 
     if vel_axis == 0:
-        cube_conv = Parallel(n_jobs=n_jobs)(delayed(conv_method)(cube[i, :, :])
-                                            for i in range(cube.shape[0]))
+        cube_conv_stack = Parallel(n_jobs=n_jobs)(
+            delayed(conv_method)(cube[i, :, :]) for i in range(cube.shape[0]))
+        cube_conv = np.array(cube_conv_stack)
+
     elif vel_axis == 2:
-        cube_conv = Parallel(n_jobs=n_jobs)(delayed(conv_method)(cube[:, :, i])
-                                            for i in range(cube.shape[2]))
+        cube_conv_stack = Parallel(n_jobs=n_jobs)(
+            delayed(conv_method)(cube[:, :, i]) for i in range(cube.shape[2]))
+        cube_conv = np.array(cube_conv_stack).transpose(1, 2, 0)
+
+    return cube_conv
+
+
+def conv_cube_1d(cube, kernel, method='direct', vel_axis=0, **kwargs):
+
+    if vel_axis not in [0, 2]:
+        raise ValueError('vel_axis must be 0 or 2')
+
+    conv_method = partial(convolve, kernel=kernel, method=method, **kwargs)
+    cube_conv = np.zeros_like(cube)
+
+    if vel_axis == 0:
+        _, n_pix1, n_pix2 = cube.shape
+        for i in range(n_pix1):
+            for j in range(n_pix2):
+                cube_conv[:, i, j] = conv_method(cube[:, i, j])
+    elif vel_axis == 2:
+        n_pix1, n_pix2, _ = cube.shape
+        for i in range(n_pix1):
+            for j in range(n_pix2):
+                cube_conv[i, j, :] = conv_method(cube[i, j, :])
+
+    return cube_conv
+
+
+def conv_cube_1d_p(cube,
+                   kernel,
+                   method='direct',
+                   vel_axis=0,
+                   n_jobs=1,
+                   **kwargs):
+
+    if vel_axis not in [0, 2]:
+        raise ValueError('vel_axis must be 0 or 2')
+
+    conv_method = partial(convolve, kernel=kernel, method=method, **kwargs)
+
+    if vel_axis == 0:
+        _, n_pix1, n_pix2 = cube.shape
+        cube_conv_stack = Parallel(n_jobs=n_jobs)(delayed(conv_method)(cube[:,
+                                                                            i,
+                                                                            j])
+                                                  for i in range(n_pix1)
+                                                  for j in range(n_pix2))
+        cube_conv = np.array(cube_conv_stack).reshape(
+            (n_pix1, n_pix2, -1)).transpose(2, 0, 1)
+
+    elif vel_axis == 2:
+        n_pix1, n_pix2, _ = cube.shape
+        cube_conv_stack = Parallel(n_jobs=n_jobs)(
+            delayed(conv_method)(cube[i, j, :]) for i in range(n_pix1)
+            for j in range(n_pix2))
+        cube_conv = np.array(cube_conv_stack).reshape((n_pix1, n_pix2, -1))
 
     return cube_conv
 
@@ -134,5 +191,6 @@ def patch_image(data, mask, threshold):
     data_new[can_patch == 1] = loess(x[can_patch == 1], y[can_patch == 1])
 
     return data_new
+
 
 # TODO: error correction

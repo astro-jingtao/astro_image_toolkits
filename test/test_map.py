@@ -101,16 +101,15 @@ class TestUnitConversion:
         assert np.allclose(image_area, image_true)
         assert np.allclose(image_err_area, image_err_true)
 
-        # with cosmo
-        cosmo = Planck15
+        # cosmological
 
         image_area_cosmo = _map.per_pixel_to_per_area('image',
                                                       in_unit=u.erg / u.s /
                                                       u.cm**2 * 1e-17,
-                                                      cosmo=cosmo)
+                                                      cosmological=True)
 
-        scaler = ((cosmo.luminosity_distance(_map.redshift) /
-                   cosmo.angular_diameter_distance(
+        scaler = ((Planck15.luminosity_distance(_map.redshift) /
+                   Planck15.angular_diameter_distance(
                        _map.redshift))**2).decompose().value
 
         assert np.allclose(image_area_cosmo, image_true * scaler)

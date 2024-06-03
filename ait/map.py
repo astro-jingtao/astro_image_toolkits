@@ -29,6 +29,9 @@ class Map:
         self.wcs: WCS = wcs
         self.redshift: float = redshift
         self.PSF_FWHM: float = PSF_FWHM  # in arcsec
+
+        if metadata is None:
+            metadata = {}
         self.metadata: Dict[str, Any] = metadata
 
         self.check_shape()
@@ -120,7 +123,7 @@ class Map:
                               in_unit=u.erg / u.s / u.cm**2,
                               out_unit=u.erg / u.s / u.kpc**2,
                               kind='value',
-                              cosmo=None):
+                              cosmological=False):
         '''
         Assume the input map is flux like, and the unit of the input map is per pixel. e.g. erg/s/cm^2/pixel
         
@@ -129,14 +132,8 @@ class Map:
 
         scaler = (4 * np.pi) / (np.deg2rad(self.pixel_scale / 3600)**2)
 
-        if cosmo is None:
-            D_L = 1 * u.Mpc
-            D_A = 1 * u.Mpc
-        else:
-            D_L = cosmo.luminosity_distance(self.redshift).to(u.Mpc)
-            D_A = cosmo.angular_diameter_distance(self.redshift).to(u.Mpc)
-
-        scaler *= (D_L / D_A)**2
+        if cosmological:
+            scaler *= (1 + self.redshift)**4
 
         if kind == 'snr':
             return self.get_snr(name)

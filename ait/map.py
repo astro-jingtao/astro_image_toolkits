@@ -35,13 +35,13 @@ class Map:
 
             # sourcery skip: de-morgan
             layers = {
-                key: file[key][()]
-                for key in file.keys() if not key == 'metadata'
+                key: value[()]
+                for key, value in file.items() if not key == 'metadata'
             }
 
             attributes = {
-                key: file.attrs[key]
-                for key in file.attrs.keys() if not key == 'data_version'
+                key: value
+                for key, value in file.attrs.items() if not key == 'data_version'
             }
             metadata_bytes = bytes(file['metadata'][()])
             attributes['metadata'] = pickle.loads(metadata_bytes)

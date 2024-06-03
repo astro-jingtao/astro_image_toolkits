@@ -8,10 +8,10 @@ from astropy.wcs import WCS
 import astropy.units as u
 
 
-# TODO: 3d layer
 class Map:
 
-    DATA_VERSION = 1
+    DATA_VERSION = 2
+    ATTRS_TO_SAVE = ['pixel_scale', 'wcs', 'redshift', 'PSF_FWHM']
 
     def __init__(self,
                  *,
@@ -19,6 +19,7 @@ class Map:
                  pixel_scale,
                  wcs=None,
                  redshift=None,
+                 PSF_FWHM=None,
                  metadata=None) -> None:
 
         self.layers: Dict[
@@ -27,6 +28,7 @@ class Map:
         self.pixel_scale: float = pixel_scale  # in arcsec
         self.wcs: WCS = wcs
         self.redshift: float = redshift
+        self.PSF_FWHM: float = PSF_FWHM  # in arcsec
         self.metadata: Dict[str, Any] = metadata
 
         self.check_shape()
@@ -80,13 +82,14 @@ class Map:
             for key, value in self.layers.items():
                 file.create_dataset(key, data=value)
 
-            # Handle WCS specifically if it's not None
-            wcs_string = self.wcs.to_header_string() if self.wcs else None
-
             # set attribute values
-            file.attrs['pixel_scale'] = self.pixel_scale
-            file.attrs['wcs'] = wcs_string
-            file.attrs['redshift'] = self.redshift
+
+            for arrts in self.ATTRS_TO_SAVE:
+                if this_arrts := getattr(self, arrts):
+                    if arrts == 'wcs':
+                        this_arrts = self.wcs.to_header_string()
+                    file.attrs[arrts] = this_arrts
+
             file.attrs['data_version'] = self.DATA_VERSION
 
             # Serialize other attributes using pickle, including WCS as string

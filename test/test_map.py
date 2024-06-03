@@ -37,10 +37,13 @@ def generate_map_instance(with_err=True, with_snr=False):
 
     redshift = 0.1
 
+    PSF_FWHM = 1.5
+
     return Map(layers=layers,
                pixel_scale=pixel_size,
                metadata=metadata,
                wcs=wcs,
+               PSF_FWHM=PSF_FWHM,
                redshift=redshift)
 
 
@@ -59,6 +62,17 @@ class TestSaveLoad:
                            _map_loaded.layers['image_err'])
         assert _map.wcs.to_header_string() == _map_loaded.wcs.to_header_string(
         )
+
+        os.remove(TMP_PATH)
+
+        # with None
+
+        _map.redshift = None
+
+        _map.save(TMP_PATH)
+        _map_loaded = Map.load(TMP_PATH)
+
+        assert _map_loaded.redshift is None
 
         os.remove(TMP_PATH)
 

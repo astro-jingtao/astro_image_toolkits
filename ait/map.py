@@ -8,29 +8,43 @@ from astropy.wcs import WCS
 
 class Map:
 
+    DATA_VERSION = 1
+
     def __init__(self,
                  *,
                  layers,
                  pixel_size,
-                 info=None,
                  wcs=None,
-                 redshift=None) -> None:
+                 redshift=None,
+                 metadata=None) -> None:
 
         self.layers = layers
         self.pixel_size = pixel_size  # in arcsec
-        self.info = info
         self.wcs = wcs
         self.redshift = redshift
+        self.metadata = metadata
 
     @classmethod
     def load(cls, filename):
         with h5py.File(filename, 'r') as file:
+
+            if file.attrs['data_version'] != cls.DATA_VERSION:
+                print(
+                    f"Data version mismatch: {file.attrs['data_version']} != {cls.DATA_VERSION}"
+                )
+
+            # sourcery skip: de-morgan
             layers = {
                 key: file[key][()]
                 for key in file.keys() if not key == 'metadata'
             }
+
+            attributes = {
+                key: file.attrs[key]
+                for key in file.attrs.keys() if not key == 'data_version'
+            }
             metadata_bytes = bytes(file['metadata'][()])
-            attributes = pickle.loads(metadata_bytes)
+            attributes['metadata'] = pickle.loads(metadata_bytes)
 
         # Deserialize WCS
         if 'wcs' in attributes and attributes['wcs']:
@@ -65,11 +79,13 @@ class Map:
             # Handle WCS specifically if it's not None
             wcs_string = self.wcs.to_header_string() if self.wcs else None
 
+            # set attribute values
+            file.attrs['pixel_size'] = self.pixel_size
+            file.attrs['wcs'] = wcs_string
+            file.attrs['redshift'] = self.redshift
+            file.attrs['data_version'] = self.DATA_VERSION
+
             # Serialize other attributes using pickle, including WCS as string
-            metadata_bytes = pickle.dumps({
-                'pixel_size': self.pixel_size,
-                'info': self.info,
-                'wcs': wcs_string,
-                'redshift': self.redshift
-            })
+
+            metadata_bytes = pickle.dumps(self.metadata)
             file.create_dataset('metadata', data=np.void(metadata_bytes))

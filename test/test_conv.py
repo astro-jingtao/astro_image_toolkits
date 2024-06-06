@@ -40,6 +40,22 @@ class TestConvCube1D:
         assert conv.shape == conv_p.shape
         assert np.allclose(conv, conv_p)
 
+    def test_data_type(self):
+
+        cube = np.random.randn(100, 30, 30).astype('float32')
+        kernel = Gaussian1DKernel(5)
+        conv = conv_cube_1d(cube, kernel)
+        conv_p = conv_cube_1d_p(cube, kernel, n_jobs=1)
+        assert conv.dtype == 'float32'
+        assert conv_p.dtype == 'float32'
+
+        cube = np.random.randn(100, 30, 30).astype('float64')
+        kernel = Gaussian1DKernel(5)
+        conv = conv_cube_1d(cube, kernel)
+        conv_p = conv_cube_1d_p(cube, kernel, n_jobs=1)
+        assert conv.dtype == 'float64'
+        assert conv_p.dtype == 'float64'
+
 
 class TestConvCube2D:
     def test_basic(self):
@@ -66,3 +82,19 @@ class TestConvCube2D:
         conv_p = conv_cube_2d_p(cube, kernel, n_jobs=1, vel_axis=2)
         assert conv.shape == conv_p.shape
         assert np.allclose(conv, conv_p)
+
+    def test_data_type(self):
+
+        cube = np.random.randn(20, 30, 30).astype('float32')
+        kernel = Gaussian2DKernel(5)
+        conv = conv_cube_2d(cube, kernel)
+        conv_p = conv_cube_2d_p(cube, kernel, n_jobs=1)
+        assert conv.dtype == 'float32'
+        assert conv_p.dtype == 'float32'
+
+        cube = np.random.randn(20, 30, 30).astype('float64')
+        kernel = Gaussian2DKernel(5)
+        conv = conv_cube_2d(cube, kernel)
+        conv_p = conv_cube_2d_p(cube, kernel, n_jobs=1)
+        assert conv.dtype == 'float64'
+        assert conv_p.dtype == 'float64'

@@ -125,7 +125,8 @@ class Map:
                               kind='value',
                               cosmological=False):
         '''
-        Assume the input map is flux like, and the unit of the input map is per pixel. e.g. erg/s/cm^2/pixel
+        Assume the input map is flux like, and the unit of the input map is per pixel. 
+        e.g. erg/s/cm^2/pixel
         
         The output map is surface brightness like. e.g. erg/s/kpc^2
         '''

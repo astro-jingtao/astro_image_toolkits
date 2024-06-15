@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from PIL import Image
 from skimage.measure import label
 
@@ -70,3 +71,39 @@ def get_isolate(arr, lower_cut=0, larger_cut=np.inf, **kwargs):
     good_clusters = np.where((cluster_sizes > lower_cut)
                              & (cluster_sizes < larger_cut))[0]
     return np.isin(clusters, good_clusters)
+
+
+def get_unique_name(names, name_lst, name_pattern='{name}_{i}'):
+
+    # if name is not list
+    if not isinstance(names, list):
+        names = [names]
+        is_single_name = True
+    else:
+        is_single_name = False
+
+    k = len(names)
+
+    i = 0
+    while any(name in name_lst for name in names):
+
+        for j in range(k):
+            names[j] = name_pattern.format(name=names[j], i=i)
+        i += 1
+
+    if is_single_name:
+        names = names[0]
+
+    return names
+
+
+def is_string_series(s: pd.Series):
+    # https://stackoverflow.com/questions/43049545/python-check-if-dataframe-column-contain-string-type
+    if isinstance(s.dtype, pd.StringDtype):
+        # The series was explicitly created as a string series (Pandas>=1.0.0)
+        return True
+    elif s.dtype == 'object':
+        # Object series, check each value
+        return all((v is None) or isinstance(v, str) for v in s)
+    else:
+        return False

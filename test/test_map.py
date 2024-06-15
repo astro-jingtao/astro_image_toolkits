@@ -1,12 +1,13 @@
 import os
 
 import numpy as np
+import pandas as pd
 from astropy.wcs import WCS
 import astropy.units as u
 from astropy.cosmology import Planck15, FlatLambdaCDM
 import pytest
 
-from ait.map import Map, layers_to_df
+from ait.map import Map, layers_to_df, df_to_layers
 
 TMP_PATH = "./tmp_map.h5"
 
@@ -199,9 +200,20 @@ class TestLayers2DF:
 
         check(result_df)
 
-        result_df = layers_to_df(layers=layers, add_pos=True, drop_nan=False)
+        result_df_1 = layers_to_df(layers=layers, add_pos=True, drop_nan=False)
 
-        check(result_df)
+        check(result_df_1)
+
+        layers = {
+            'pos_ii': np.random.rand(10, 10),
+            'pos_jj': np.random.rand(10, 10)
+        }
+        result_df_2 = layers_to_df(layers=layers, add_pos=True)
+
+        assert 'pos_ii_0' in result_df_2.columns
+        assert 'pos_jj_0' in result_df_2.columns
+        assert np.allclose(result_df_2['pos_ii_0'], result_df_1['pos_ii'])
+        assert np.allclose(result_df_2['pos_jj_0'], result_df_1['pos_jj'])
 
     def test_nan_treatment(self):
         # Create dummy input data with NaN values for testing
@@ -264,3 +276,110 @@ class TestLayers2DF:
         assert str(
             e.value
         ) == "Duplicate key: layer1, consider using a new postfix_3d to rename the keys"
+
+
+class TestDfToLayers:
+
+    def test_basic_functionality(self):
+        # Create a simple DataFrame for testing
+        df = pd.DataFrame({
+            'pos_ii': [0, 1, 2],
+            'pos_jj': [0, 1, 2],
+            'value': [10, 20, 30]
+        })
+
+        # Call the function with default parameters
+        layers = df_to_layers(df, set_masked=False)
+
+        # Check if the layers dictionary is created
+        assert isinstance(layers, dict)
+
+        # Check if the mask layer is created correctly
+        assert 'mask' in layers
+        assert layers['mask'].shape == (3, 3)
+        assert np.array_equal(
+            layers['mask'],
+            np.array([[False, True, True], [True, False, True],
+                      [True, True, False]]))
+
+        # Check if the value layer is created correctly
+        assert 'value' in layers
+        assert layers['value'].shape == (3, 3)
+        assert np.array_equal(layers['value'],
+                              np.array([[10, 0, 0], [0, 20, 0], [0, 0, 30]]))
+
+        # Add more tests for other parameters and edge cases
+
+    def test_drop_unique(self):
+        # Create a DataFrame with a column that has only one unique value
+        df = pd.DataFrame({
+            'pos_ii': [0, 1, 2],
+            'pos_jj': [0, 1, 2],
+            'value1': [10, 10, 10],
+            'value2': [1, 2, 3]
+        })
+
+        # Call the function with drop_unique=True
+        layers = df_to_layers(df, drop_unique=True)
+
+        # Check if the layer with the unique value is not included
+        assert 'value' not in layers
+
+    def test_shape_parameter(self):
+        # Create a DataFrame
+        df = pd.DataFrame({
+            'pos_ii': [0, 1, 2],
+            'pos_jj': [0, 1, 2],
+            'value': [10, 20, 30]
+        })
+
+        # Call the function with a custom shape
+        layers = df_to_layers(df, shape=(4, 4))
+
+        # Check if the shape is respected
+        assert 'value' in layers
+        assert layers['value'].shape == (4, 4)
+
+        assert np.array_equal(
+            layers['mask'],
+            np.array([[False, True, True, True], [True, False, True, True],
+                      [True, True, False, True], [True, True, True, True]]))
+
+    def test_set_masked(self):
+        # Create a simple DataFrame for testing
+        df = pd.DataFrame({
+            'pos_ii': [0, 1, 2],
+            'pos_jj': [0, 1, 2],
+            'value_float': [10., 20., 30.],
+            'value_int': [10, 20, 30],
+            'value_str': ['10', '20', '30'],
+            'value_bool': [True, True, True]
+        })
+
+        # Call the function with default parameters
+        layers = df_to_layers(df, set_masked=True)
+
+        assert np.array_equal(layers['value_float'],
+                              np.array([[10, np.nan, np.nan],
+                                        [np.nan, 20, np.nan],
+                                        [np.nan, np.nan, 30]]),
+                              equal_nan=True)
+        assert layers['value_float'].dtype == np.float64
+
+        assert np.array_equal(
+            layers['value_int'],
+            np.array([[10, -999, -999], [-999, 20, -999], [-999, -999, 30]]))
+        assert layers['value_int'].dtype == int
+
+        # print(layers['value_str'])
+        assert np.array_equal(
+            layers['value_str'],
+            np.array([['10', 'masked', 'masked'], ['masked', '20', 'masked'],
+                      ['masked', 'masked', '30']]))
+
+        assert np.issubdtype(layers['value_str'].dtype, np.dtype('U'))
+
+        assert np.array_equal(
+            layers['value_bool'],
+            np.array([[1, -1, -1], [-1, 1, -1], [-1, -1, 1]]))
+        assert layers['value_bool'].dtype == int

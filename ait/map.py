@@ -9,6 +9,8 @@ from astropy.wcs import WCS
 import astropy.units as u
 from astropy.cosmology import FlatLambdaCDM
 
+from .utils import get_unique_name, is_string_series
+
 
 class Map:
 
@@ -211,14 +213,7 @@ def layers_to_df(layers,
     if add_pos:
         ii, jj = np.indices(layers[list(layers.keys())[0]].shape)
 
-        ii_name = 'pos_ii'
-        jj_name = 'pos_jj'
-
-        _k = 0
-        while (ii_name in df.columns) or (jj_name in df.columns):
-            ii_name = f'pos_ii_{_k}'
-            jj_name = f'pos_jj_{_k}'
-            _k += 1
+        ii_name, jj_name = get_unique_name(['pos_ii', 'pos_jj'], df.columns)
 
         if drop_nan:
             df[ii_name] = ii.flatten()[~to_drop]
@@ -237,3 +232,112 @@ def layers_to_df(layers,
                 df[key] = value
 
     return df
+
+
+def df_to_layers(df: pd.DataFrame,
+                 i_name='pos_ii',
+                 j_name='pos_jj',
+                 shape=None,
+                 name_3d=None,
+                 postfix_3d=None,
+                 drop_unique=False,
+                 set_masked=True,
+                 masked_mapper=None):
+
+    if postfix_3d is None:
+
+        def postfix_3d(layer_name, i):
+            return f"{layer_name}_{i}"
+
+    if i_name not in df.columns:
+        raise ValueError(f"Cannot find i_name: {i_name} in the DataFrame")
+
+    if j_name not in df.columns:
+        raise ValueError(f"Cannot find j_name: {j_name} in the DataFrame")
+
+    if shape is None:
+        shape = (df[i_name].max() + 1, df[j_name].max() + 1)
+    else:
+        if shape[0] < df[i_name].max() + 1 or shape[1] < df[j_name].max() + 1:
+            raise ValueError(
+                f"The given shape {shape} is smaller than the shape according to index in the DataFrame: ({df[i_name].max() + 1}, {df[j_name].max() + 1})"
+            )
+
+    if masked_mapper is None:
+
+        masked_mapper = masked_mapper_default
+
+    layers = {}
+
+    mask_name = get_unique_name('mask', df.columns)
+
+    layers[mask_name] = np.ones(shape, dtype=bool)
+    layers[mask_name][df[i_name], df[j_name]] = False
+
+    for name in df.columns:
+
+        if name in [i_name, j_name]:
+            continue
+
+        if drop_unique and len(df[name].unique()) == 1:
+            continue
+
+        # if dtype is str
+
+        # print(name, df[name].dtype)
+        if is_string_series(df[name]):
+
+            max_len = 64
+            for _str in df[name].unique():
+                max_len = max(max_len, len(_str))
+            this_arr = np.full(shape, '', dtype=f'U{max_len}')
+        else:
+            this_arr = np.zeros(shape, dtype=df[name].dtype)
+        # fill data into this_arr according to i_name and j_name
+        this_arr[df[i_name], df[j_name]] = df[name]
+        if set_masked:
+            this_arr = masked_mapper(this_arr, layers[mask_name])
+        layers[name] = this_arr
+
+    if name_3d is not None:
+        for name in name_3d:
+
+            if name in layers:
+                raise ValueError(f"The 3d cube name '{name}' already exists")
+
+            this_name_lst = []
+
+            _k = 0
+            df_name = postfix_3d(name, _k)
+            while df_name in layers:
+                this_name_lst.append(df_name)
+                _k += 1
+                df_name = postfix_3d(name, _k)
+
+            layers[name] = np.stack(
+                [layers[this_name] for this_name in this_name_lst])
+
+            for this_name in this_name_lst:
+                del layers[this_name]
+
+    return layers
+
+
+def masked_mapper_default(arr, mask):
+
+    # if str, set to 'masked'
+    if np.issubdtype(arr.dtype, np.str_):
+        arr = np.where(mask, 'masked', arr)
+    # if float, set to nan
+    elif np.issubdtype(arr.dtype, np.floating):
+        arr = np.where(mask, np.nan, arr)
+    # if int, set to -999
+    elif np.issubdtype(arr.dtype, np.integer):
+        arr = np.where(mask, -999, arr)
+    # if bool, convert to int, and set to -1
+    elif np.issubdtype(arr.dtype, np.bool_):
+        arr = np.where(mask, -1, arr.astype(int))
+    else:
+        print(f"Unknown dtype: {arr.dtype}")
+
+    return arr

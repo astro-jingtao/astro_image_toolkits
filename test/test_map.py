@@ -3,7 +3,7 @@ import os
 import numpy as np
 from astropy.wcs import WCS
 import astropy.units as u
-from astropy.cosmology import Planck15
+from astropy.cosmology import Planck15, FlatLambdaCDM
 import pytest
 
 from ait.map import Map
@@ -79,17 +79,29 @@ class TestSaveLoad:
 
 class TestUnitConversion:
 
+    def test_get_pixel_area(self):
+
+        _map = generate_map_instance()
+
+        pixel_area = _map.get_pixel_area(unit=u.kpc**2)
+
+        D = FlatLambdaCDM(H0=70, Om0=0.3).angular_diameter_distance(0.1)
+
+        assert np.allclose(pixel_area,
+                           (D.to(u.kpc).value *
+                            np.deg2rad(_map.pixel_scale / 3600))**2)
+
     def test_pixel_to_area(self):
         _map = generate_map_instance()
 
-        image_area = _map.per_pixel_to_per_area('image',
-                                                in_unit=u.erg / u.s / u.cm**2 *
-                                                1e-17)
+        image_sb = _map.flux_to_surface_brightness('image',
+                                                   in_unit=u.erg / u.s /
+                                                   u.cm**2 * 1e-17)
 
-        image_err_area = _map.per_pixel_to_per_area('image',
-                                                    in_unit=u.erg / u.s /
-                                                    u.cm**2 * 1e-17,
-                                                    kind='err')
+        image_err_sb = _map.flux_to_surface_brightness('image',
+                                                       in_unit=u.erg / u.s /
+                                                       u.cm**2 * 1e-17,
+                                                       kind='err')
 
         # from emilkit
         image_true = _map.layers['image'] * 4 * np.pi / (np.deg2rad(
@@ -98,15 +110,13 @@ class TestUnitConversion:
         image_err_true = _map.get_err('image') * 4 * np.pi / (np.deg2rad(
             _map.pixel_scale / 3600)**2) * (3.0856776e21)**2 * 1e-17
 
-        assert np.allclose(image_area, image_true)
-        assert np.allclose(image_err_area, image_err_true)
+        assert np.allclose(image_sb, image_true)
+        assert np.allclose(image_err_sb, image_err_true)
 
         # cosmological
 
-        image_area_cosmo = _map.per_pixel_to_per_area('image',
-                                                      in_unit=u.erg / u.s /
-                                                      u.cm**2 * 1e-17,
-                                                      cosmological=True)
+        image_area_cosmo = _map.flux_to_surface_brightness(
+            'image', in_unit=u.erg / u.s / u.cm**2 * 1e-17, cosmological=True)
 
         scaler = ((Planck15.luminosity_distance(_map.redshift) /
                    Planck15.angular_diameter_distance(
@@ -118,9 +128,9 @@ class TestUnitConversion:
 
         _map.layers['cube'] = np.random.rand(20, 10, 10)
 
-        cube_area = _map.per_pixel_to_per_area('cube',
-                                               in_unit=u.erg / u.s / u.cm**2 *
-                                               1e-17)
+        cube_area = _map.flux_to_surface_brightness('cube',
+                                                    in_unit=u.erg / u.s /
+                                                    u.cm**2 * 1e-17)
 
         cube_true = _map.layers['cube'] * 4 * np.pi / (np.deg2rad(
             _map.pixel_scale / 3600)**2) * (3.0856776e21)**2 * 1e-17

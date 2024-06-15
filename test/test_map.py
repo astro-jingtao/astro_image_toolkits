@@ -6,7 +6,7 @@ import astropy.units as u
 from astropy.cosmology import Planck15, FlatLambdaCDM
 import pytest
 
-from ait.map import Map
+from ait.map import Map, layers_to_df
 
 TMP_PATH = "./tmp_map.h5"
 
@@ -151,3 +151,116 @@ class TestSelfCheck:
 
         _map.layers['image_err'] = np.random.rand(5, 10, 10)
         _map.check_shape()
+
+
+class TestLayers2DF:
+
+    def test_add_global_feature(self):
+
+        layers = {
+            'layer1': np.random.rand(10, 10),
+            'layer2': np.random.rand(10, 10)
+        }
+
+        global_feature = {'feature1': 1}
+
+        result_df = layers_to_df(layers=layers, global_feature=global_feature)
+
+        assert 'feature1' in result_df.columns
+        assert result_df['feature1'].unique() == [1]
+
+        global_feature = {'layer1': 1}
+
+        with pytest.raises(ValueError) as e:
+            layers_to_df(layers=layers, global_feature=global_feature)
+        assert str(
+            e.value
+        ) == "Duplicate key: layer1, consider using a new key to add the globals"
+
+    def test_add_pos(self):
+
+        def check(result_df):
+            assert 'pos_ii' in result_df.columns
+            assert 'pos_jj' in result_df.columns
+
+            selected = (result_df['pos_ii'] == 8) & (result_df['pos_jj'] == 4)
+
+            assert result_df['layer1'][selected].values[0] == layers['layer1'][
+                8, 4]
+            assert result_df['layer2'][selected].values[0] == layers['layer2'][
+                8, 4]
+
+        layers = {
+            'layer1': np.random.rand(10, 10),
+            'layer2': np.random.rand(10, 10)
+        }
+
+        result_df = layers_to_df(layers=layers, add_pos=True)
+
+        check(result_df)
+
+        result_df = layers_to_df(layers=layers, add_pos=True, drop_nan=False)
+
+        check(result_df)
+
+    def test_nan_treatment(self):
+        # Create dummy input data with NaN values for testing
+        layers = {
+            'layer1': np.array([[1, np.nan], [3, 4]]),
+            'layer2': np.array([[[5, 6], [7, np.nan]], [[9, np.nan], [11,
+                                                                      12]]])
+        }
+        global_feature = {'feature1': 1}
+
+        # Call the function with the test input and drop_nan set to False to observe NaN treatment
+        result_df = layers_to_df(layers=layers,
+                                 add_pos=False,
+                                 global_feature=global_feature,
+                                 drop_nan=True,
+                                 nan_threshold=0.5)
+        print(result_df)
+        # Perform assertions to verify NaN treatment
+        assert np.allclose(result_df['layer1'], [1, 3, 4])
+        assert np.allclose(result_df['layer2_0'], [5, 7, np.nan],
+                           equal_nan=True)
+
+    def test_3d_layer(self):
+        layers = {
+            'layer1': np.random.rand(10, 10),
+            'layer2': np.random.rand(10, 10),
+            'layer3': np.random.rand(10, 10)
+        }
+
+        layers['layer3d'] = np.random.rand(3, 10, 10)
+
+        result_df = layers_to_df(layers=layers)
+
+        assert 'layer3d_0' in result_df.columns
+        assert 'layer3d_1' in result_df.columns
+        assert 'layer3d_2' in result_df.columns
+        assert 'layer3d_3' not in result_df.columns
+
+        print(result_df)
+
+        assert result_df.shape[1] == 3 + 3 + 2
+
+        # test postfix_3d
+        def postfix_3d(layer_name, i):
+            return f"{layer_name}_{i}_3d"
+
+        result_df = layers_to_df(layers=layers, postfix_3d=postfix_3d)
+
+        assert 'layer3d_0_3d' in result_df.columns
+        assert 'layer3d_1_3d' in result_df.columns
+        assert 'layer3d_2_3d' in result_df.columns
+
+        assert result_df.shape[1] == 3 + 3 + 2
+
+        def postfix_3d_bad(layer_name, i):
+            return f"layer{i}"
+
+        with pytest.raises(ValueError) as e:
+            layers_to_df(layers=layers, postfix_3d=postfix_3d_bad)
+        assert str(
+            e.value
+        ) == "Duplicate key: layer1, consider using a new postfix_3d to rename the keys"

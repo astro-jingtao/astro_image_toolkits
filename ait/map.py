@@ -1,8 +1,9 @@
 import pickle
-from typing import Dict, Any
+from typing import Dict, Any, Callable
 
 import h5py
 import numpy as np
+import pandas as pd
 from astropy.io import fits
 from astropy.wcs import WCS
 import astropy.units as u
@@ -171,3 +172,68 @@ class Map:
             data = self.get_err(name)
 
         return (data * in_unit * scaler).to(out_unit).value
+
+
+def layers_to_df(layers,
+                 postfix_3d=None,
+                 add_pos: bool = True,
+                 global_feature: Dict = None,
+                 drop_nan: bool = True,
+                 nan_threshold: float = 0.8):
+
+    if postfix_3d is None:
+
+        def postfix_3d(layer_name, i):
+            return f"{layer_name}_{i}"
+
+    df = pd.DataFrame()
+
+    for layer_name, layer in layers.items():
+        if len(layer.shape) == 2:
+            df[layer_name] = layer.flatten()
+        else:
+            for i in range(layer.shape[0]):
+                new_layer_name = postfix_3d(layer_name, i)
+
+                if new_layer_name in df.columns:
+                    raise ValueError(
+                        f"Duplicate key: {new_layer_name}, consider using a new postfix_3d to rename the keys"
+                    )
+                else:
+                    df[new_layer_name] = layer[i].flatten()
+
+    if drop_nan:
+        # get nan fraction for each row
+        nan_fraction = df.isna().mean(axis=1)
+        to_drop = nan_fraction > nan_threshold
+        df = df[~to_drop].reindex()
+
+    if add_pos:
+        ii, jj = np.indices(layers[list(layers.keys())[0]].shape)
+
+        ii_name = 'pos_ii'
+        jj_name = 'pos_jj'
+
+        _k = 0
+        while (ii_name in df.columns) or (jj_name in df.columns):
+            ii_name = f'pos_ii_{_k}'
+            jj_name = f'pos_jj_{_k}'
+            _k += 1
+
+        if drop_nan:
+            df[ii_name] = ii.flatten()[~to_drop]
+            df[jj_name] = jj.flatten()[~to_drop]
+        else:
+            df[ii_name] = ii.flatten()
+            df[jj_name] = jj.flatten()
+
+    if global_feature is not None:
+        for key, value in global_feature.items():
+            if key in df.columns:
+                raise ValueError(
+                    f"Duplicate key: {key}, consider using a new key to add the globals"
+                )
+            else:
+                df[key] = value
+
+    return df

@@ -8,45 +8,10 @@ from astropy.cosmology import Planck15, FlatLambdaCDM
 import pytest
 
 from ait.map import Map, layers_to_df, df_to_layers
+from utils_test.gen_map import generate_map_instance
 
 TMP_PATH = "./tmp_map.h5"
 OLD_FILE_TEMP = "./test_data/map_{ver}.h5"
-
-
-def generate_map_instance(with_err=True, with_snr=False):
-
-    layers = {'image': np.random.rand(10, 10)}
-
-    snr = np.random.uniform(1, 5, size=(10, 10))
-    err = layers['image'] / snr
-
-    if with_err:
-        layers['image_err'] = err
-
-    if with_snr:
-        layers['image_snr'] = snr
-
-    pixel_size = 0.5
-    metadata = {'aaa': 123, 'bbb': 456}
-
-    # https://docs.astropy.org/en/stable/wcs/example_create_imaging.html
-    wcs = WCS(naxis=2)
-    wcs.wcs.crpix = [-234.75, 8.3393]
-    wcs.wcs.cdelt = np.array([-0.066667, 0.066667])
-    wcs.wcs.crval = [0, -90]
-    wcs.wcs.ctype = ["RA---AIR", "DEC--AIR"]
-    wcs.wcs.set_pv([(2, 1, 45.0)])
-
-    redshift = 0.1
-
-    PSF_FWHM = 1.5
-
-    return Map(layers=layers,
-               pixel_scale=pixel_size,
-               metadata=metadata,
-               wcs=wcs,
-               PSF_FWHM=PSF_FWHM,
-               redshift=redshift)
 
 def is_map_all_same(map1, map2):
     assert map1.metadata == map2.metadata

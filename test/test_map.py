@@ -78,6 +78,11 @@ class TestSaveLoad:
 
             is_map_all_same(this_map, old_map)
             
+    def test_if_need_new_data_version(self):
+
+        this_map = generate_map_instance()
+        loaded_map = Map.load(OLD_FILE_TEMP.format(ver=Map.DATA_VERSION))
+        is_map_all_same(this_map, loaded_map)
 
 
 class TestUnitConversion:

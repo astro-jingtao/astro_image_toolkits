@@ -52,6 +52,11 @@ class TestSaveLoad:
 
     def test_save_load(self):
         _map = generate_map_instance()
+
+        # sourcery skip: no-conditionals-in-tests
+        if not os.path.exists(f'./test_data/map_{_map.DATA_VERSION}.h5'):
+            _map.save(f'./test_data/map_{_map.DATA_VERSION}.h5')
+
         _map.save(TMP_PATH)
         _map_loaded = Map.load(TMP_PATH)
 

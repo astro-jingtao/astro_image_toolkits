@@ -10,6 +10,7 @@ import pytest
 from ait.map import Map, layers_to_df, df_to_layers
 
 TMP_PATH = "./tmp_map.h5"
+OLD_FILE_TEMP = "./test_data/map_{ver}.h5"
 
 
 def generate_map_instance(with_err=True, with_snr=False):
@@ -47,6 +48,18 @@ def generate_map_instance(with_err=True, with_snr=False):
                PSF_FWHM=PSF_FWHM,
                redshift=redshift)
 
+def is_map_all_same(map1, map2):
+    assert map1.metadata == map2.metadata
+    assert map1.pixel_scale == map2.pixel_scale
+    assert map1.redshift == map2.redshift
+
+    assert map1.layers.keys() == map2.layers.keys()
+    
+    for k in map1.layers.keys():
+        assert np.allclose(map1.layers[k], map2.layers[k])    
+
+    assert map1.wcs.to_header_string() == map2.wcs.to_header_string()
+
 
 class TestSaveLoad:
 
@@ -54,8 +67,8 @@ class TestSaveLoad:
         _map = generate_map_instance()
 
         # sourcery skip: no-conditionals-in-tests
-        if not os.path.exists(f'./test_data/map_{_map.DATA_VERSION}.h5'):
-            _map.save(f'./test_data/map_{_map.DATA_VERSION}.h5')
+        if not os.path.exists(OLD_FILE_TEMP.format(ver=_map.DATA_VERSION)):
+            _map.save(OLD_FILE_TEMP.format(ver=_map.DATA_VERSION))
 
         _map.save(TMP_PATH)
         _map_loaded = Map.load(TMP_PATH)
@@ -89,6 +102,18 @@ class TestSaveLoad:
         assert _map_loaded.units == _map.units
 
         os.remove(TMP_PATH)
+
+    def test_load_old(self):
+
+        this_map = generate_map_instance()
+
+        for ver in Map.ALLOWED_OLD_DATA_VERSION:
+            old_file_path = OLD_FILE_TEMP.format(ver=ver)
+            old_map = Map.load_old(old_file_path, version=ver)
+
+            is_map_all_same(this_map, old_map)
+            
+
 
 class TestUnitConversion:
 

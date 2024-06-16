@@ -15,7 +15,9 @@ from .utils import get_unique_name, is_string_series
 class Map:
 
     # only updated when the data structure do not compatible with the previous version
-    DATA_VERSION = 2
+    DATA_VERSION = 3
+
+    ALLOWED_OLD_DATA_VERSION = [2]
 
     ATTRS_TO_SAVE = ['pixel_scale', 'wcs', 'redshift', 'PSF_FWHM', 'shape']
 
@@ -23,6 +25,7 @@ class Map:
                  *,
                  layers,
                  pixel_scale,
+                 units=None,
                  wcs=None,
                  redshift=None,
                  PSF_FWHM=None,
@@ -33,6 +36,7 @@ class Map:
             str, np.
             ndarray] = layers  # if 3D, the first dimension is the additional dimension
         self.pixel_scale: float = pixel_scale  # in arcsec
+        self.units: Dict[str, str] = units if units is not None else {}
         self.wcs: WCS = wcs
         self.redshift: float = redshift
         self.PSF_FWHM: float = PSF_FWHM  # in arcsec
@@ -46,37 +50,16 @@ class Map:
 
     @classmethod
     def load(cls, filename):
-        with h5py.File(filename, 'r') as file:
+        return load_map_v3(filename)
 
-            if file.attrs['data_version'] != cls.DATA_VERSION:
-                print(
-                    f"Data version mismatch: {file.attrs['data_version']} != {cls.DATA_VERSION}"
-                )
-
-            # sourcery skip: de-morgan
-            layers = {
-                key: value[()]
-                for key, value in file.items() if not key == 'metadata'
-            }
-
-            attributes = {
-                key: value
-                for key, value in file.attrs.items()
-                if not key == 'data_version'
-            }
-            metadata_bytes = bytes(file['metadata'][()])
-            attributes['metadata'] = pickle.loads(metadata_bytes)
-
-        # Deserialize WCS
-        if 'wcs' in attributes and attributes['wcs']:
-            wcs_header = fits.Header.fromstring(attributes['wcs'])
-            attributes['wcs'] = WCS(wcs_header)
-
-        # shape as tuple
-        if 'shape' in attributes:
-            attributes['shape'] = tuple(attributes['shape'])
-
-        return cls(layers=layers, **attributes)
+    @classmethod
+    def load_old(cls, filename, version):
+        if version not in cls.ALLOWED_OLD_DATA_VERSION:
+            raise ValueError(
+                f"Unsupported data version: {version}, only support {cls.ALLOWED_OLD_DATA_VERSION}"
+            )
+        elif version == 2:
+            return load_map_v2(filename)
 
     def check_shape(self, set_shape=True):
 
@@ -97,8 +80,14 @@ class Map:
 
     def save(self, filename):
         with h5py.File(filename, 'w') as file:
+
+            layers_group = file.create_group('layers')
             for key, value in self.layers.items():
-                file.create_dataset(key, data=value)
+                layers_group.create_dataset(key, data=value)
+
+            units_group = file.create_group('units')
+            for key, value in self.units.items():
+                units_group.create_dataset(key, data=value)
 
             # set attribute values
 
@@ -341,3 +330,69 @@ def masked_mapper_default(arr, mask):
         print(f"Unknown dtype: {arr.dtype}")
 
     return arr
+
+
+# --- load map --- 
+
+def load_map_v3(filename):
+    with h5py.File(filename, 'r') as file:
+
+        if file.attrs['data_version'] != 3:
+            print(f"Data version mismatch: {file.attrs['data_version']} != 3")
+
+        # sourcery skip: de-morgan
+        layers = {key: value[()] for key, value in file['layers'].items()}
+
+        units = {
+            key: value[()].decode('utf-8')
+            for key, value in file['units'].items()
+        }
+
+        attributes = {
+            key: value
+            for key, value in file.attrs.items() if not key == 'data_version'
+        }
+        metadata_bytes = bytes(file['metadata'][()])
+        attributes['metadata'] = pickle.loads(metadata_bytes)
+
+    # Deserialize WCS
+    if 'wcs' in attributes and attributes['wcs']:
+        wcs_header = fits.Header.fromstring(attributes['wcs'])
+        attributes['wcs'] = WCS(wcs_header)
+
+    # shape as tuple
+    if 'shape' in attributes:
+        attributes['shape'] = tuple(attributes['shape'])
+
+    return Map(layers=layers, units=units, **attributes)
+
+
+def load_map_v2(filename):
+    with h5py.File(filename, 'r') as file:
+
+        if file.attrs['data_version'] != 2:
+            print(f"Data version mismatch: {file.attrs['data_version']} != 2")
+
+        # sourcery skip: de-morgan
+        layers = {
+            key: value[()]
+            for key, value in file.items() if not key == 'metadata'
+        }
+
+        attributes = {
+            key: value
+            for key, value in file.attrs.items() if not key == 'data_version'
+        }
+        metadata_bytes = bytes(file['metadata'][()])
+        attributes['metadata'] = pickle.loads(metadata_bytes)
+
+    # Deserialize WCS
+    if 'wcs' in attributes and attributes['wcs']:
+        wcs_header = fits.Header.fromstring(attributes['wcs'])
+        attributes['wcs'] = WCS(wcs_header)
+
+    # shape as tuple
+    if 'shape' in attributes:
+        attributes['shape'] = tuple(attributes['shape'])
+
+    return Map(layers=layers, **attributes)

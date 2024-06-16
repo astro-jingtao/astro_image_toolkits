@@ -77,6 +77,13 @@ class TestSaveLoad:
 
         os.remove(TMP_PATH)
 
+        _map.units['image'] = 'erg/s'
+        _map.save(TMP_PATH)
+        _map_loaded = Map.load(TMP_PATH)
+
+        assert _map_loaded.units == _map.units
+
+        os.remove(TMP_PATH)
 
 class TestUnitConversion:
 

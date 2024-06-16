@@ -11,7 +11,7 @@ from ait.map import Map, layers_to_df, df_to_layers
 from utils_test.gen_map import generate_map_instance
 
 TMP_PATH = "./tmp_map.h5"
-OLD_FILE_TEMP = "./test_data/map_{ver}.h5"
+OLD_FILE_TEMP = "./map_data/map_{ver}.h5"
 
 def is_map_all_same(map1, map2):
     assert map1.metadata == map2.metadata

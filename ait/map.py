@@ -1,13 +1,14 @@
+import os
 import pickle
-from typing import Dict, Any, Callable
+from typing import Any, Callable, Dict
 
+import astropy.units as u
 import h5py
 import numpy as np
 import pandas as pd
+from astropy.cosmology import FlatLambdaCDM
 from astropy.io import fits
 from astropy.wcs import WCS
-import astropy.units as u
-from astropy.cosmology import FlatLambdaCDM
 
 from .utils import get_unique_name, is_string_series
 
@@ -78,7 +79,14 @@ class Map:
         if (set_shape) and (self.shape is None):
             self.shape = shape
 
-    def save(self, filename):
+    def save(self, filename, replace=False):
+
+        if os.path.exists(filename):
+            if replace:
+                os.remove(filename)
+            else:
+                raise ValueError(f"File already exists: {filename}")
+
         with h5py.File(filename, 'w') as file:
 
             layers_group = file.create_group('layers')
@@ -177,27 +185,54 @@ def layers_to_df(layers,
         def postfix_3d(layer_name, i):
             return f"{layer_name}_{i}"
 
-    df = pd.DataFrame()
+    # df = pd.DataFrame()
+
+    # for layer_name, layer in layers.items():
+    #     if len(layer.shape) == 2:
+    #         df[layer_name] = layer.flatten()
+    #     else:
+    #         for i in range(layer.shape[0]):
+    #             new_layer_name = postfix_3d(layer_name, i)
+
+    #             if new_layer_name in df.columns:
+    #                 raise ValueError(
+    #                     f"Duplicate key: {new_layer_name}, consider using a new postfix_3d to rename the keys"
+    #                 )
+    #             else:
+    #                 df[new_layer_name] = layer[i].flatten()
+
+
+    # PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+    # Construct a list of Pandas Series
+    series_list = []
+    name_list = []
 
     for layer_name, layer in layers.items():
         if len(layer.shape) == 2:
-            df[layer_name] = layer.flatten()
+            series = pd.Series(layer.flatten(), name=layer_name)
+            series_list.append(series)
+            name_list.append(layer_name)
         else:
             for i in range(layer.shape[0]):
                 new_layer_name = postfix_3d(layer_name, i)
 
-                if new_layer_name in df.columns:
+                if new_layer_name in name_list:
                     raise ValueError(
                         f"Duplicate key: {new_layer_name}, consider using a new postfix_3d to rename the keys"
                     )
-                else:
-                    df[new_layer_name] = layer[i].flatten()
+
+                series = pd.Series(layer[i].flatten(), name=new_layer_name)
+                series_list.append(series)
+                name_list.append(layer_name)
+
+    # Concatenate the list of series into a single DataFrame
+    df = pd.concat(series_list, axis=1)
 
     if drop_nan:
         # get nan fraction for each row
         nan_fraction = df.isna().mean(axis=1)
         to_drop = nan_fraction > nan_threshold
-        df = df[~to_drop].reindex()
+        df = df[~to_drop].reset_index(drop=True)
 
     if add_pos:
         ii, jj = np.indices(layers[list(layers.keys())[0]].shape)
@@ -332,13 +367,15 @@ def masked_mapper_default(arr, mask):
     return arr
 
 
-# --- load map --- 
+# --- load map ---
+
 
 def load_map_v3(filename):
     with h5py.File(filename, 'r') as file:
 
         if file.attrs['data_version'] != 3:
-            print(f"Data version mismatch: {file.attrs['data_version']} != 3")
+            raise ValueError(
+                f"Data version mismatch: {file.attrs['data_version']} != 3")
 
         # sourcery skip: de-morgan
         layers = {key: value[()] for key, value in file['layers'].items()}
@@ -371,7 +408,8 @@ def load_map_v2(filename):
     with h5py.File(filename, 'r') as file:
 
         if file.attrs['data_version'] != 2:
-            print(f"Data version mismatch: {file.attrs['data_version']} != 2")
+            raise ValueError(
+                f"Data version mismatch: {file.attrs['data_version']} != 2")
 
         # sourcery skip: de-morgan
         layers = {

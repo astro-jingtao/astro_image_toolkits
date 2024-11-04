@@ -75,6 +75,8 @@ def conv_cube_2d_p(cube,
         cube_conv_stack = Parallel(n_jobs=n_jobs, batch_size=batch_size)(
             delayed(conv_method)(cube[:, :, i]) for i in range(cube.shape[2]))
         cube_conv = np.array(cube_conv_stack).transpose(1, 2, 0)
+    else:
+        raise ValueError('vel_axis must be 0 or 2')
 
     return cube_conv
 
@@ -129,6 +131,8 @@ def conv_cube_1d_p(cube,
             delayed(conv_method)(cube[i, j, :]) for i in range(n_pix1)
             for j in range(n_pix2))
         cube_conv = np.array(cube_conv_stack).reshape((n_pix1, n_pix2, -1))
+    else:
+        raise ValueError('vel_axis must be 0 or 2')
 
     return cube_conv
 
@@ -137,14 +141,14 @@ def match_psf_gaussian_cube_2d():
     ...
 
 
-def match_psf_gaussian(width_from,
+def match_psf_gaussian(data_from,
+                       width_from,
                        width_to,
-                       data_from,
                        is_err=False,
                        patch_nan=True,
                        threshold=2,
                        width_type='fwhm',
-                       fft_method='direct',
+                       conv_method='direct',
                        **kwargs):
 
     if width_to < width_from:
@@ -159,6 +163,8 @@ def match_psf_gaussian(width_from,
     elif width_type == 'sigma':
         sigma_from = width_from
         sigma_to = width_to
+    else:
+        raise ValueError('width_type must be fwhm or sigma')
 
     kernel_size_in_pix = np.sqrt(sigma_to**2 - sigma_from**2)
     kernel = Gaussian2DKernel(x_stddev=kernel_size_in_pix,
@@ -168,9 +174,9 @@ def match_psf_gaussian(width_from,
         data_from = patch_image(data_from, np.isnan(data_from), threshold)
 
     if is_err:
-        return convolve_err(data_from, kernel, method=fft_method, **kwargs)
+        return convolve_err(data_from, kernel, method=conv_method, **kwargs)
     else:
-        return convolve(data_from, kernel, method=fft_method, **kwargs)
+        return convolve(data_from, kernel, method=conv_method, **kwargs)
 
 
 def patch_image(data, mask, threshold):
@@ -195,3 +201,6 @@ def patch_image(data, mask, threshold):
 
 
 # TODO: error correction
+
+def get_error_correction():
+    ...

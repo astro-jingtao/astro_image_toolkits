@@ -1,6 +1,6 @@
 import os
 import pickle
-from typing import Any, Callable, Dict
+from typing import Any, Union, Dict
 
 import astropy.units as u
 import h5py
@@ -20,6 +20,7 @@ class Map:
 
     ALLOWED_OLD_DATA_VERSION = [2]
 
+    # layers and units are saved as datasets in hdf5 file
     ATTRS_TO_SAVE = ['pixel_scale', 'wcs', 'redshift', 'PSF_FWHM', 'shape']
 
     def __init__(self,
@@ -41,7 +42,8 @@ class Map:
         self.wcs: WCS = wcs
         self.redshift: float = redshift
         self.PSF_FWHM: float = PSF_FWHM  # in arcsec
-        self.shape: tuple = tuple(shape) if shape is not None else None
+        self.shape: Union[tuple,
+                          None] = tuple(shape) if shape is not None else None
 
         if metadata is None:
             metadata = {}
@@ -169,6 +171,8 @@ class Map:
             data = self.layers[name]
         elif kind == 'err':
             data = self.get_err(name)
+        else:
+            raise ValueError(f"Invalid kind: {kind}")
 
         return (data * in_unit * scaler).to(out_unit).value
 
@@ -176,7 +180,7 @@ class Map:
 def layers_to_df(layers,
                  postfix_3d=None,
                  add_pos: bool = True,
-                 global_feature: Dict = None,
+                 global_feature: Union[Dict, None] = None,
                  drop_nan: bool = True,
                  nan_threshold: float = 0.8):
 
@@ -200,7 +204,6 @@ def layers_to_df(layers,
     #                 )
     #             else:
     #                 df[new_layer_name] = layer[i].flatten()
-
 
     # PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
     # Construct a list of Pandas Series

@@ -165,11 +165,11 @@ def _parse_input_width(width_from, width_to, width_type):
 
 
 # TODO: support width_in_pixel_unit=False
-# TODO: support error correction
 def match_psf_gaussian(data_from,
                        width_from,
                        width_to,
                        is_err=False,
+                       to_correct_error=True,
                        patch_nan=True,
                        threshold=2,
                        width_in_pixel_unit=True,
@@ -195,8 +195,12 @@ def match_psf_gaussian(data_from,
     if patch_nan:
         data_from = patch_image(data_from, np.isnan(data_from), threshold)
 
+    # sourcery skip: remove-unnecessary-else, swap-if-else-branches
     if is_err:
-        return convolve_err(data_from, kernel, method=conv_method, **kwargs)
+        err_to = convolve_err(data_from, kernel, method=conv_method, **kwargs)
+        if to_correct_error:
+            err_to *= get_error_correction(width_from, width_to, width_type)
+        return err_to
     else:
         return convolve(data_from, kernel, method=conv_method, **kwargs)
 

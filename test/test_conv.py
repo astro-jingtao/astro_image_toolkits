@@ -1,9 +1,14 @@
 import numpy as np
-from ait.conv import convolve, _convolve, conv_cube_1d, conv_cube_1d_p, conv_cube_2d, conv_cube_2d_p
-from astropy.convolution import Gaussian2DKernel, Gaussian1DKernel
+from astropy.convolution import Gaussian1DKernel, Gaussian2DKernel
+import pytest
+from ait.conv import (_convolve, conv_cube_1d, conv_cube_1d_p, conv_cube_2d,
+                      conv_cube_2d_p, convolve, match_psf_gaussian,
+                      get_error_correction)
 
+avoid_cpu_heavy = False
 
 class TestConvolve:
+
     def test_basic(self):
         arr = np.random.randn(100, 100)
         kernel = Gaussian2DKernel(5)
@@ -11,8 +16,9 @@ class TestConvolve:
         assert conv.shape == arr.shape
         assert np.allclose(conv, _convolve(arr, kernel))
 
-
+@pytest.mark.skipif(avoid_cpu_heavy, reason="avoid cpu-heavy tests")
 class TestConvCube1D:
+
     def test_basic(self):
         cube = np.random.randn(100, 30, 30)
         kernel = Gaussian1DKernel(5)
@@ -56,8 +62,9 @@ class TestConvCube1D:
         assert conv.dtype == 'float64'
         assert conv_p.dtype == 'float64'
 
-
+@pytest.mark.skipif(avoid_cpu_heavy, reason="avoid cpu-heavy tests")
 class TestConvCube2D:
+
     def test_basic(self):
         cube = np.random.randn(100, 30, 30)
         kernel = Gaussian2DKernel(5)
@@ -98,3 +105,41 @@ class TestConvCube2D:
         conv_p = conv_cube_2d_p(cube, kernel, n_jobs=1)
         assert conv.dtype == 'float64'
         assert conv_p.dtype == 'float64'
+
+
+class TestMatchPSF:
+
+    def test_consistency(self):
+        arr = np.random.randn(100, 100)
+
+        kernel = Gaussian2DKernel(3)
+        arr_conv = convolve(arr, kernel)
+        arr_conv_match = match_psf_gaussian(arr, 0, 3, width_type='sigma')
+        assert np.allclose(arr_conv, arr_conv_match)
+
+        kernel2 = Gaussian2DKernel(4)
+        arr_conv_conv = convolve(arr_conv, kernel2)
+        arr_conv_conv_match = match_psf_gaussian(arr_conv,
+                                                 3,
+                                                 5,
+                                                 width_type='sigma')
+        assert np.allclose(arr_conv_conv, arr_conv_conv_match)
+
+    def test_error_correction(self):
+        arr = np.random.randn(100, 100)
+
+        arr_not_corrected = match_psf_gaussian(arr,
+                                               2,
+                                               4,
+                                               width_type='fwhm',
+                                               is_err=True,
+                                               to_correct_error=False)
+        arr_corrected = match_psf_gaussian(arr,
+                                           2,
+                                           4,
+                                           width_type='fwhm',
+                                           is_err=True,
+                                           to_correct_error=True)
+
+        assert np.allclose(arr_not_corrected * get_error_correction(2, 4),
+                           arr_corrected)

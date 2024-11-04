@@ -2,13 +2,12 @@ import os
 
 import numpy as np
 import pandas as pd
-from astropy.wcs import WCS
 import astropy.units as u
 from astropy.cosmology import Planck15, FlatLambdaCDM
 import pytest
 
 from ait.map import Map, layers_to_df, df_to_layers
-from utils_test.gen_map import generate_map_instance
+from utils_test.data_generator import generate_map_instance
 
 TMP_PATH = "./tmp_map.h5"
 OLD_FILE_TEMP = "./map_data/map_{ver}.h5"

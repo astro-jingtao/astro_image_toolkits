@@ -1,3 +1,5 @@
+import warnings
+
 import astropy.units as u
 from reproject import reproject_adaptive, reproject_exact, reproject_interp
 from scipy.ndimage import zoom
@@ -243,7 +245,7 @@ def get_zoom_factor(zoom_factor, from_pixel_scale, to_pixel_scale):
         else:
             zoom_factor = from_pixel_scale / to_pixel_scale
     elif from_pixel_scale is not None or to_pixel_scale is not None:
-        raise Warning(
+        warnings.warn(
             'Both scale and from_pixsize and to_pixsize are provided. '
             'from_pixsize and to_pixsize will be ignored.')
 

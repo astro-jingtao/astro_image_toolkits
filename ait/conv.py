@@ -1,4 +1,5 @@
 from functools import partial
+import warnings
 import numpy as np
 from astropy.convolution import Gaussian2DKernel, Kernel
 from astropy.convolution import convolve as _convolve, convolve_fft as _convolve_fft
@@ -141,30 +142,51 @@ def match_psf_gaussian_cube_2d():
     ...
 
 
+def _parse_input_width(width_from, width_to, width_type):
+
+    if width_to < width_from:
+        raise ValueError('width_to must be greater than width_from')
+    else:
+        if width_to == width_from:
+            is_equal = True
+        else:
+            is_equal = False
+
+    if width_type == 'fwhm':
+        sigma_from = fwhm2sigma(width_from)
+        sigma_to = fwhm2sigma(width_to)
+    elif width_type == 'sigma':
+        sigma_from = width_from
+        sigma_to = width_to
+    else:
+        raise ValueError('width_type must be fwhm or sigma')
+
+    return sigma_from, sigma_to, is_equal
+
+
+# TODO: support width_in_pixel_unit=False
+# TODO: support error correction
 def match_psf_gaussian(data_from,
                        width_from,
                        width_to,
                        is_err=False,
                        patch_nan=True,
                        threshold=2,
+                       width_in_pixel_unit=True,
                        width_type='fwhm',
                        conv_method='direct',
                        **kwargs):
 
-    if width_to < width_from:
-        raise ValueError('width_to must be greater than width_from')
-    elif width_to == width_from:
+    if not width_in_pixel_unit:
+        raise NotImplementedError(
+            'width_in_pixel_unit=False is not supported yet')
+
+    sigma_from, sigma_to, is_equal = _parse_input_width(
+        width_from, width_to, width_type)
+
+    if is_equal:
         print('width_to is equal to width_from, no need to convolve')
         return data_from
-
-    if width_type == 'fwhm':
-        sigma_from = width_from / 2.355
-        sigma_to = width_to / 2.355
-    elif width_type == 'sigma':
-        sigma_from = width_from
-        sigma_to = width_to
-    else:
-        raise ValueError('width_type must be fwhm or sigma')
 
     kernel_size_in_pix = np.sqrt(sigma_to**2 - sigma_from**2)
     kernel = Gaussian2DKernel(x_stddev=kernel_size_in_pix,
@@ -200,7 +222,43 @@ def patch_image(data, mask, threshold):
     return data_new
 
 
-# TODO: error correction
+def sigma2fwhm(sigma):
+    return 2.355 * sigma
 
-def get_error_correction():
-    ...
+
+def fwhm2sigma(fwhm):
+    return fwhm / 2.355
+
+
+def get_error_correction(width_from,
+                         width_to,
+                         width_type='fwhm',
+                         d=2,
+                         small_value_warning=True):
+    # https://iopscience.iop.org/article/10.3847/2515-5172/abe8df
+
+    sigma_from, sigma_to, is_equal = _parse_input_width(
+        width_from, width_to, width_type)
+
+    if is_equal:
+        print('width_to is equal to width_from, no need to correct')
+        return 1
+
+    b = sigma_from
+    theta = np.sqrt(sigma_to**2 - sigma_from**2)
+
+    res = np.sqrt(
+        np.power((2 * np.sqrt(np.pi) * theta * b) / (np.sqrt(theta**2 + b**2)),
+                 d))
+
+    if res < 1:
+        if small_value_warning:
+            warnings.warn('''
+                The calculated error correction is less than 1,
+                which indicates that the the original PSF or (and) the kernel is not well-sampled. 
+                The behavior of error propagation in this case can not be handled by this formula. 
+                Returning 1 (usually a good approximation for).
+                ''')
+        return 1
+
+    return res

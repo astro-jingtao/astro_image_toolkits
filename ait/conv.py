@@ -8,18 +8,18 @@ from joblib import Parallel, delayed
 from asa.loess2d import LOESS2D
 from .utils import get_isolate
 
-# TODO: test all functions
-
 
 def convolve(arr, kernel, is_err=False, method='direct', **kwargs):
     if is_err:
-        return convolve_err(arr, kernel, method='direct', **kwargs)
+        return convolve_err(arr, kernel, method=method, **kwargs)
     if method == 'direct':
         return _convolve(arr, kernel, **kwargs)
     elif method == 'fft':
         return _convolve_fft(arr, kernel, **kwargs)
+    elif method == 'fft_nan':
+        return convolve_fft_nan(arr, kernel, **kwargs)
     else:
-        raise ValueError('method must be direct or fft')
+        raise ValueError('method must be direct, fftm or fft_nan')
 
 
 def convolve_err(err, kernel, method='direct', **kwargs):
@@ -30,6 +30,69 @@ def convolve_err(err, kernel, method='direct', **kwargs):
     kwargs['normalize_kernel'] = False
     return np.sqrt(convolve(var, kernel, is_err=False, method=method,
                             **kwargs))
+
+
+def convolve_fft_nan(arr,
+                     kernel,
+                     normalize_kernel=True,
+                     normalization_zero_tol=1e-8,
+                     mask=None,
+                     crop=True,
+                     fft_pad=None,
+                     psf_pad=None,
+                     allow_huge=False,
+                     fftn=np.fft.fftn,
+                     ifftn=np.fft.ifftn,
+                     complex_dtype=complex):
+
+    nan_arr = np.zeros_like(arr)
+    nan_arr[np.isnan(arr)] = 1
+    nan_kernel = np.ones_like(kernel)
+    nan_arr_conv = _convolve_fft(nan_arr,
+                                 nan_kernel,
+                                 boundary="fill",
+                                 fill_value=1,
+                                 nan_treatment="fill",
+                                 preserve_nan=False,
+                                 return_fft=False,
+                                 min_wt=0.0,
+                                 dealias=False,
+                                 normalize_kernel=False,
+                                 normalization_zero_tol=normalization_zero_tol,
+                                 mask=mask,
+                                 crop=crop,
+                                 fft_pad=fft_pad,
+                                 psf_pad=psf_pad,
+                                 allow_huge=allow_huge,
+                                 fftn=fftn,
+                                 ifftn=ifftn,
+                                 complex_dtype=complex_dtype)
+
+    value_arr = arr.copy()
+    value_arr[np.isnan(arr)] = 0
+    value_arr_conv = _convolve_fft(
+        value_arr,
+        kernel,
+        boundary="fill",
+        fill_value=0,
+        nan_treatment="fill",
+        preserve_nan=False,
+        return_fft=False,
+        min_wt=0.0,
+        dealias=False,
+        normalize_kernel=normalize_kernel,
+        normalization_zero_tol=normalization_zero_tol,
+        mask=mask,
+        crop=crop,
+        fft_pad=fft_pad,
+        psf_pad=psf_pad,
+        allow_huge=allow_huge,
+        fftn=fftn,
+        ifftn=ifftn,
+        complex_dtype=complex_dtype)
+
+    value_arr_conv[~np.isclose(nan_arr_conv, 0)] = np.nan
+    return value_arr_conv
 
 
 def conv_image():

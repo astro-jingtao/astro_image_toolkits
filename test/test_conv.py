@@ -5,7 +5,7 @@ from ait.conv import (_convolve, conv_cube_1d, conv_cube_1d_p, conv_cube_2d,
                       conv_cube_2d_p, convolve, match_psf_gaussian,
                       get_error_correction)
 
-avoid_cpu_heavy = False
+avoid_cpu_heavy = True
 
 class TestConvolve:
 
@@ -15,6 +15,41 @@ class TestConvolve:
         conv = convolve(arr, kernel)
         assert conv.shape == arr.shape
         assert np.allclose(conv, _convolve(arr, kernel))
+
+
+class TestConvolveFFTNaN:
+
+    def test_basic(self):
+        arr = np.random.randn(100, 100)
+        kernel = Gaussian2DKernel(1)
+        arr[40:60, 40:60] = np.nan
+
+        arr_conv_direct = convolve(arr,
+                                   kernel,
+                                   boundary="fill",
+                                   fill_value=np.nan,
+                                   nan_treatment="fill")
+
+        arr_conv_nanfft = convolve(arr, kernel, method="fft_nan")
+
+        assert np.allclose(arr_conv_direct, arr_conv_nanfft, equal_nan=True)
+
+        arr_conv_err_direct = convolve(np.abs(arr),
+                                       kernel,
+                                       boundary="fill",
+                                       fill_value=np.nan,
+                                       nan_treatment="fill",
+                                       is_err=True)
+
+        arr_conv_err_nanfft = convolve(np.abs(arr),
+                                       kernel,
+                                       method="fft_nan",
+                                       is_err=True)
+
+        assert np.allclose(arr_conv_err_direct,
+                           arr_conv_err_nanfft,
+                           equal_nan=True)
+
 
 @pytest.mark.skipif(avoid_cpu_heavy, reason="avoid cpu-heavy tests")
 class TestConvCube1D:
@@ -61,6 +96,7 @@ class TestConvCube1D:
         conv_p = conv_cube_1d_p(cube, kernel, n_jobs=1)
         assert conv.dtype == 'float64'
         assert conv_p.dtype == 'float64'
+
 
 @pytest.mark.skipif(avoid_cpu_heavy, reason="avoid cpu-heavy tests")
 class TestConvCube2D:

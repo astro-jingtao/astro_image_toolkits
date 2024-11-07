@@ -438,7 +438,7 @@ def phy2ang_size(physical_size,
     if isinstance(physical_size, u.Quantity):
         d = physical_size
     else:
-        d = physical_size * to_unit  # assume in kpc
+        d = physical_size * u.kpc  # assume in kpc
 
     angular_distance = get_angular_distance(angular_distance, redshift, cosmo)
 

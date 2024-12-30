@@ -1,6 +1,7 @@
 import os
 import pickle
-from typing import Any, Union, Dict
+import warnings
+from typing import Any, Dict, Union
 
 import astropy.units as u
 import h5py
@@ -13,6 +14,7 @@ from astropy.wcs import WCS
 from .utils import get_unique_name, is_string_series
 
 
+# TODO: distance
 class Map:
 
     # only updated when the data structure do not compatible with the previous version
@@ -140,10 +142,13 @@ class Map:
         Return the pixel area in given unit
         '''
 
-        if D is None:
-            D = cosmo.angular_diameter_distance(self.redshift)
+        pixel_scale_phy = ang2phy_size(self.pixel_scale,
+                                       angular_distance=D,
+                                       return_with_unit=True,
+                                       redshift=self.redshift,
+                                       cosmo=cosmo)
 
-        return ((D * np.deg2rad(self.pixel_scale / 3600))**2).to(unit).value
+        return (pixel_scale_phy**2).to(unit).value
 
     def flux_to_surface_brightness(self,
                                    name,
@@ -368,6 +373,100 @@ def masked_mapper_default(arr, mask):
         print(f"Unknown dtype: {arr.dtype}")
 
     return arr
+
+
+def ang2phy_size(angular_size,
+                 angular_distance=None,
+                 to_unit=u.kpc,
+                 return_with_unit=False,
+                 redshift=None,
+                 cosmo=FlatLambdaCDM(H0=70, Om0=0.3)):
+    """
+    Convert angular size to physical size
+
+    Parameters
+    ----------
+    angular_size : float or astropy.units.Quantity
+        Angular size in arcsec or astropy.units.Quantity
+    angular_distance : float or astropy.units.Quantity, optional
+        Angular distance in Mpc or astropy.units.Quantity, by default None.
+        If None, redshift must be provided
+    to_unit : astropy.units.Unit, optional
+        Physical unit to convert to, by default u.kpc
+    with_unit : bool, optional
+        Whether to return the result with astropy.units.Quantity, by default False
+    redshift : float, optional
+        Redshift of the source, by default None
+        If None, angular_distance must be provided
+    cosmo : astropy.cosmology.FLRW, optional
+        Cosmology to use, by default FlatLambdaCDM(H0=70, Om0=0.3)
+
+    Returns
+    -------
+    float or astropy.units.Quantity
+        Physical size in the given unit
+    """
+
+    if isinstance(angular_size, u.Quantity):
+        theta = angular_size.to(u.radian).value
+    else:
+        # assume in arcsec
+        theta = np.deg2rad(angular_size / 3600)
+
+    angular_distance = get_angular_distance(angular_distance, redshift, cosmo)
+
+    if isinstance(angular_distance, u.Quantity):
+        D = angular_distance
+    else:
+        D = angular_distance * u.Mpc  # assume in Mpc
+
+    d = (theta * D).to(to_unit)
+
+    if return_with_unit:
+        return d
+    else:
+        return d.value
+
+
+def phy2ang_size(physical_size,
+                 angular_distance=None,
+                 to_unit=u.arcsec,
+                 return_with_unit=False,
+                 redshift=None,
+                 cosmo=FlatLambdaCDM(H0=70, Om0=0.3)):
+
+    if isinstance(physical_size, u.Quantity):
+        d = physical_size
+    else:
+        d = physical_size * u.kpc  # assume in kpc
+
+    angular_distance = get_angular_distance(angular_distance, redshift, cosmo)
+
+    if isinstance(angular_distance, u.Quantity):
+        D = angular_distance
+    else:
+        D = angular_distance * u.Mpc  # assume in Mpc
+
+    theta = ((d / D).decompose() * u.radian).to(to_unit)
+
+    if return_with_unit:
+        return theta
+    else:
+        return theta.value
+
+
+def get_angular_distance(angular_distance, redshift, cosmo):
+    if angular_distance is None:
+        if redshift is None:
+            raise ValueError("Both angular_distance and redshift are None")
+        angular_distance = cosmo.angular_diameter_distance(redshift)
+    else:
+        if redshift is not None:
+            warnings.warn(
+                "Both angular_distance and redshift are provided, redshift will be ignored"
+            )
+
+    return angular_distance
 
 
 # --- load map ---

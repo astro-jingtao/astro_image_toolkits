@@ -3,6 +3,16 @@ from astropy.wcs import WCS
 
 from ait.map import Map
 
+def generate_wcs():
+    # https://docs.astropy.org/en/stable/wcs/example_create_imaging.html
+    wcs = WCS(naxis=2)
+    wcs.wcs.crpix = [-234.75, 8.3393]
+    wcs.wcs.cdelt = [-0.066667, 0.066667]
+    wcs.wcs.crval = [0, -90]
+    wcs.wcs.ctype = ["RA---AIR", "DEC--AIR"]
+    wcs.wcs.cunit = ["deg", "deg"] # need to specify units for celestial axes or it will default to dimensionless
+    wcs.wcs.set_pv([(2, 1, 45.0)])
+    return wcs
 
 def generate_map_instance(with_err=True, with_snr=False):
 
@@ -100,23 +110,17 @@ def generate_map_instance(with_err=True, with_snr=False):
     if with_snr:
         layers['image_snr'] = snr
 
-    pixel_size = 0.5
+    pixel_scale = 0.5
     metadata = {'aaa': 123, 'bbb': 456}
 
-    # https://docs.astropy.org/en/stable/wcs/example_create_imaging.html
-    wcs = WCS(naxis=2)
-    wcs.wcs.crpix = [-234.75, 8.3393]
-    wcs.wcs.cdelt = np.array([-0.066667, 0.066667])
-    wcs.wcs.crval = [0, -90]
-    wcs.wcs.ctype = ["RA---AIR", "DEC--AIR"]
-    wcs.wcs.set_pv([(2, 1, 45.0)])
+    wcs = generate_wcs()
 
     redshift = 0.1
 
     PSF_FWHM = 1.5
 
     return Map(layers=layers,
-               pixel_scale=pixel_size,
+               pixel_scale=pixel_scale,
                metadata=metadata,
                wcs=wcs,
                PSF_FWHM=PSF_FWHM,

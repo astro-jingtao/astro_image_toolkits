@@ -3,6 +3,8 @@ import warnings
 import numpy as np
 from astropy.convolution import Gaussian2DKernel, Kernel
 from astropy.convolution import convolve as _convolve, convolve_fft as _convolve_fft
+from astropy.constants import c
+import astropy.units as u
 from joblib import Parallel, delayed
 
 from asa.loess2d import LOESS2D
@@ -329,3 +331,16 @@ def get_error_correction(width_from,
         return 1
 
     return res
+
+
+def get_wavelength_kernel(delta_ln_lambda, mean, sigma, n_sigma=4):
+    delta_v = c.to(u.km / u.s).value * delta_ln_lambda
+    # The convolution operator flips the second array before “sliding” the two across one another
+    # So postive means redshift
+    x_mean = mean / delta_v
+    x_sigma = sigma / delta_v
+    half_size = int(n_sigma * x_sigma + np.abs(x_mean))
+    x = np.arange(half_size * 2 + 1) - half_size
+    kernel = np.exp(-0.5 * ((x - x_mean) / x_sigma)**2)
+    kernel /= np.sum(kernel)
+    return kernel

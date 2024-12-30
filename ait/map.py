@@ -389,7 +389,7 @@ def ang2phy_size(angular_size,
     angular_size : float or astropy.units.Quantity
         Angular size in arcsec or astropy.units.Quantity
     angular_distance : float or astropy.units.Quantity, optional
-        Angular distance in Mpc or astropy.units.Quantity, by default None
+        Angular distance in Mpc or astropy.units.Quantity, by default None.
         If None, redshift must be provided
     to_unit : astropy.units.Unit, optional
         Physical unit to convert to, by default u.kpc

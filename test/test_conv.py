@@ -1,11 +1,14 @@
 import numpy as np
-from astropy.convolution import Gaussian1DKernel, Gaussian2DKernel
 import pytest
+from astropy.constants import c
+from astropy.convolution import Gaussian1DKernel, Gaussian2DKernel
+
 from ait.conv import (_convolve, conv_cube_1d, conv_cube_1d_p, conv_cube_2d,
-                      conv_cube_2d_p, convolve, match_psf_gaussian,
-                      get_error_correction)
+                      conv_cube_2d_p, convolve, get_error_correction,
+                      get_wavelength_kernel, match_psf_gaussian)
 
 avoid_cpu_heavy = True
+
 
 class TestConvolve:
 
@@ -179,3 +182,20 @@ class TestMatchPSF:
 
         assert np.allclose(arr_not_corrected * get_error_correction(2, 4),
                            arr_corrected)
+
+
+class TestGetWavelengthKernel:
+
+    @pytest.mark.parametrize("sigma,d_ln_lambda", [(200, 2e-4), (50, 1e-4),
+                                                   (1000, 1e-3), (150, 1e-4),
+                                                   (10, 1e-6)])
+    def test_compare_to_G1DK(self, sigma, d_ln_lambda):
+        for n_s in [2, 3, 4, 5]:
+            k_this_method = get_wavelength_kernel(d_ln_lambda,
+                                                  0,
+                                                  sigma,
+                                                  n_sigma=n_s)
+            k_G1DK = Gaussian1DKernel(sigma /
+                                      (c.to('km/s').value * d_ln_lambda),
+                                      x_size=k_this_method.size).array
+            assert np.allclose(k_this_method, k_G1DK)

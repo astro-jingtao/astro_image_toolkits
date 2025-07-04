@@ -47,13 +47,13 @@ def get_r_3d(input_array):
     return [rx, ry, rz], r
 
 
-def read_png(path):
+def read_img(path):
     img = Image.open(path)
     img = np.array(img)
     return img
 
 
-def save_png(img, path):
+def save_img(img, path):
     # img should be [0, 255]
     img = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
     img.save(path)

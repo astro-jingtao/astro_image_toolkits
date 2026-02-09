@@ -49,7 +49,9 @@ def convolve(arr,
     if pad:
         slice_obj = []
         for this_pad in _pad_width:  # type: ignore
-            slice_obj.append(slice(this_pad[0], -this_pad[1]))
+            idx_begin = this_pad[0] if this_pad[0] != 0 else None
+            idx_end = -this_pad[1] if this_pad[1] != 0 else None
+            slice_obj.append(slice(idx_begin, idx_end))
         arr_conv = arr_conv[tuple(slice_obj)]
 
     return arr_conv

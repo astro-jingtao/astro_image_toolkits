@@ -14,7 +14,7 @@ from astropy.wcs import WCS
 from .utils import get_unique_name, is_string_series
 
 
-# TODO: distance
+# TODO: try to make meta readable
 class Map:
 
     # only updated when the data structure do not compatible with the previous version
@@ -106,12 +106,12 @@ class Map:
             for arrts in self.ATTRS_TO_SAVE:
                 if this_arrts := getattr(self, arrts):
                     if arrts == 'wcs':
-                        this_arrts = self.wcs.to_header_string()
+                        this_arrts = self.wcs.to_header_string(relax=True)
                     file.attrs[arrts] = this_arrts
 
             file.attrs['data_version'] = self.DATA_VERSION
 
-            # Serialize other attributes using pickle, including WCS as string
+            # Serialize other attributes using pickle
 
             metadata_bytes = pickle.dumps(self.metadata)
             file.create_dataset('metadata', data=np.void(metadata_bytes))

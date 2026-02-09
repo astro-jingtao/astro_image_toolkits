@@ -55,7 +55,7 @@ def read_img(path):
 
 def save_img(img, path):
     # img should be [0, 255]
-    img = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
+    img = Image.fromarray(np.clip(np.asarray(img), 0, 255).astype(np.uint8))
     img.save(path)
 
 

@@ -45,6 +45,13 @@ class TestConvolve:
             conv,
             _convolve(arr_pad, kernel)[n_pad:-n_pad, n_pad:-n_pad])
 
+    def test_pad_1x1_kernel(self):
+        arr = np.random.randn(100, 100)
+        kernel = np.array([[1]])
+        conv = convolve(arr, kernel, pad=True)
+        assert conv.shape == arr.shape
+        assert np.allclose(conv, _convolve(arr, kernel))
+
 
 class TestConvolveFFTNaN:
 

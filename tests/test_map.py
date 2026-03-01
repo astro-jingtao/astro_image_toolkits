@@ -379,7 +379,7 @@ class TestDfToLayers:
         assert np.array_equal(
             layers['value_int'],
             np.array([[10, -999, -999], [-999, 20, -999], [-999, -999, 30]]))
-        assert layers['value_int'].dtype == int
+        assert layers['value_int'].dtype == np.int64
 
         # print(layers['value_str'])
         assert np.array_equal(

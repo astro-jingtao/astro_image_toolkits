@@ -11,17 +11,50 @@ from asa.loess2d import LOESS2D
 from .utils import get_isolate
 
 
-def convolve(arr, kernel, is_err=False, method='direct', **kwargs):
+def convolve(arr,
+             kernel,
+             is_err=False,
+             method='direct',
+             pad=False,
+             pad_boundary='constant',
+             pad_kwargs=None,
+             **kwargs):
+
+    if pad_kwargs is None:
+        pad_kwargs = {}
+
+    if pad:
+        _pad_width = []
+
+        for i in range(arr.ndim):
+            npad = kernel.shape[i] // 2
+            _pad_width.append((npad, npad))
+
+        arr = np.pad(arr,
+                     pad_width=_pad_width,
+                     mode=pad_boundary,
+                     **pad_kwargs)  # type: ignore
+
     if is_err:
-        return convolve_err(arr, kernel, method=method, **kwargs)
+        arr_conv = convolve_err(arr, kernel, method=method, **kwargs)
     if method == 'direct':
-        return _convolve(arr, kernel, **kwargs)
+        arr_conv = _convolve(arr, kernel, **kwargs)
     elif method == 'fft':
-        return _convolve_fft(arr, kernel, **kwargs)
+        arr_conv = _convolve_fft(arr, kernel, **kwargs)
     elif method == 'fft_nan':
-        return convolve_fft_nan(arr, kernel, **kwargs)
+        arr_conv = convolve_fft_nan(arr, kernel, **kwargs)
     else:
         raise ValueError('method must be direct, fftm or fft_nan')
+
+    if pad:
+        slice_obj = []
+        for this_pad in _pad_width:  # type: ignore
+            idx_begin = this_pad[0] if this_pad[0] != 0 else None
+            idx_end = -this_pad[1] if this_pad[1] != 0 else None
+            slice_obj.append(slice(idx_begin, idx_end))
+        arr_conv = arr_conv[tuple(slice_obj)]
+
+    return arr_conv
 
 
 def convolve_err(err, kernel, method='direct', **kwargs):
@@ -95,10 +128,6 @@ def convolve_fft_nan(arr,
 
     value_arr_conv[~np.isclose(nan_arr_conv, 0)] = np.nan
     return value_arr_conv
-
-
-def conv_image():
-    ...
 
 
 def conv_cube_2d(cube, kernel, method='direct', vel_axis=0, **kwargs):

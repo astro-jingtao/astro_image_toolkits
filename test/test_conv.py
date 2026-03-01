@@ -19,6 +19,39 @@ class TestConvolve:
         assert conv.shape == arr.shape
         assert np.allclose(conv, _convolve(arr, kernel))
 
+    def test_pad_non_square(self):
+        arr = np.random.randn(100, 100)
+
+        # test non-square kernel
+        kernel = Gaussian2DKernel(5, x_size=11, y_size=5)
+        conv = convolve(arr, kernel, pad=True)
+        assert conv.shape == arr.shape
+        assert np.allclose(conv, _convolve(arr, kernel))
+
+    @pytest.mark.parametrize("boundary", [
+        "constant", "edge", "linear_ramp", "maximum", "mean", "median",
+        "minimum", "reflect", "symmetric", "wrap"
+    ])
+    def test_pad_boundary(self, boundary):
+        arr = np.random.randn(100, 100)
+        kernel = Gaussian2DKernel(5)
+        n_pad = kernel.shape[0] // 2
+        conv = convolve(arr, kernel, pad=True, pad_boundary=boundary)
+        assert conv.shape == arr.shape
+        arr_pad = np.pad(arr,
+                         pad_width=((n_pad, n_pad), (n_pad, n_pad)),
+                         mode=boundary)
+        assert np.allclose(
+            conv,
+            _convolve(arr_pad, kernel)[n_pad:-n_pad, n_pad:-n_pad])
+
+    def test_pad_1x1_kernel(self):
+        arr = np.random.randn(100, 100)
+        kernel = np.array([[1]])
+        conv = convolve(arr, kernel, pad=True)
+        assert conv.shape == arr.shape
+        assert np.allclose(conv, _convolve(arr, kernel))
+
 
 class TestConvolveFFTNaN:
 
